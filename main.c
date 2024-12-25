@@ -339,7 +339,73 @@ ResultatRecherche rechercherParIDAvecBuffer(Ms *ms, int idRecherche, bool global
 }
 
 
+// compactage de la mémoire secondaire
+/*
+void compacterMs(Ms *ms) {
 
+    // Check if the memory structure pointer is NULL
+    if (ms == NULL) {
+        fprintf(stderr, "Erreur : Le pointeur Ms est NULL.\n");
+        return;
+    }
+
+    Bloc buffer; // Buffer to temporarily hold a single block
+    int writeIndex = 0; // Index for writing to the memory space
+    int readIndex = 0; // Index for reading from the memory space
+
+    int DF = 0;  // Index of the first free block
+    int FF = 0;  // Index of the last free block
+    int i = 0;   // General index for iteration
+
+    // Iterate through existing blocks until all blocks are processed
+    while (DF < ms->nm_bloc || FF < ms->nm_bloc) { 
+        // Find the first occupied block
+        while (i < ms->nm_bloc && ms->T[i].occupied == true) {
+            i++; // Increment index until an occupied block is found
+        }
+        DF = i; // Set DF to the index of the first free block
+
+        // If all blocks are occupied, print a message and exit
+        if (i >= ms->nm_bloc) {
+            printf("Tous les blocs sont occupés\n");
+            return;
+        } else {
+            // Count the number of consecutive free blocks after DF
+            while (i < ms->nm_bloc && ms->T[i].occupied == false) {
+                i++; // Move to the next block
+            }
+            // If there are no more occupied blocks, print a message and exit
+            if (i >= ms->nm_bloc) {
+                printf("Pas d'autre bloc occupé\n");
+                return;
+            } else {
+                FF=i-1; // last free block count
+                // Set readIndex to the next block after the last free block
+                readIndex = FF + 1; // Start reading from the first block after FF
+                writeIndex = DF; // Start writing from the first free block
+
+                // Move all occupied blocks to the writeIndex position
+                while (readIndex < ms->nm_bloc && ms->T[readIndex].occupied == true) {
+                    // Read the current block into the buffer
+                    memcpy(&buffer, &ms->T[readIndex], sizeof(Bloc));
+                
+                    // Move the occupied block to the writeIndex position
+                    memcpy(&ms->T[writeIndex], &buffer, sizeof(Bloc));
+                    modifierTableAllocation(ms, writeIndex, true); // Mark the new position as occupied
+                    modifierTableAllocation(ms, readIndex, false); // Mark the old position as free
+                    writeIndex++; // Increment write index for the next write
+                    readIndex++;  // Increment read index to process the next block
+                }
+            }
+        }
+        // Reset indices for the next iteration
+        DF = 0; // Reset DF for the next iteration
+        FF = 0; // Reset FF for the next iteration
+        i = 0;  // Reset i for the next iteration
+    }
+}
+
+*/
 
 
 int main() {
