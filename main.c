@@ -3,38 +3,67 @@
 #include  <stdbool.h>
 #include  <string.h>
 #define Total_block 100
+#define Facteur_block 3
 
-typedef struct {
-    char name[20];
-    float price;
-    int id;
-}produit;
+    typedef struct {
+        char name[20];
+        float price;
+        int id;
+    }produit;
 
-typedef struct {
-    produit enregisrement[3];
-    int nb_enregistrement;
-    int next;
-}Bloc;
+    typedef struct {
+        produit enregisrement[4];
+        int nb_enregistrement;
+        int ADR;
+        int next;
+    }Bloc;
 
-typedef struct {
-    FILE *Ms;
-    char T[sizeof(Bloc)*Total_block];
-    int nm_bloc;
-    bool occupied;
-}Ms;
-typedef struct {
-    char Nom_du_fichier[30];
-    int Taille_du_fichier;
-    int nb_enregistrement;
-    int adresse_firstblock;
-    int org_globale;
-    int org_interne;
-}mt;
-
-typedef struct {
+    typedef struct {
     bool occupied;
     int nm_bloc;
-}allocation;
+    }allocation;
+
+    typedef struct{
+        allocation T[Total_block];
+    }Tallocation;
+
+     typedef struct {
+       char Nom_du_fichier[30];
+        int Taille_du_fichier;
+        int nb_enregistrement;
+        int adresse_firstblock;
+        int org_globale; // Mode d'organisation globale (0: contigu, 1: chaîné
+        int org_interne;// Mode d'organisation interne (0: non, 1: oui)
+        int etat;//(1: existe , 0: existe pas)
+    }mt;
+
+    typedef struct {
+       char T[sizeof(Bloc)*Total_block + sizeof(allocation)];
+       char meta[sizeof(mt) *Total_block];
+       int file_count;
+       FILE *Ms;
+    }Ms;
+
+void updateTabAlloc(Ms *ms , int pos, bool occupied)
+{
+    if (pos < 0 || pos >= Total_block) {
+    fprintf(stderr, "Error: Block position %d is out of range.\n", pos);
+    return;
+}
+    Tallocation T;
+    memcpy(&T , ms->T ,  sizeof(Tallocation));
+    T.T[pos].occupied = occupied;
+    memcpy(ms->T , &T , sizeof(Tallocation));
+}
+
+void returnetat(Tallocation t ,int nm_bloc){
+    if(t.T[nm_bloc].occupied == true){
+        printf("le bloc %d est occuper\n",nm_bloc);
+    }else{
+        printf("le bloc %d est libre\n",nm_bloc);
+    }
+}
+/*
 
 
 void initialiserMs(Ms *ms, const char *nomFichier) {
@@ -337,11 +366,11 @@ ResultatRecherche rechercherParIDAvecBuffer(Ms *ms, int idRecherche, bool global
     printf("Enregistrement avec ID %d introuvable.\n", idRecherche);
     return resultat;
 }
-
+*/
 
 // compactage de la mémoire secondaire
-/*
-void compacterMs(Ms *ms) {
+
+void compacterMs(Ms *ms, Tallocation *talloc) {
 
     // Check if the memory structure pointer is NULL
     if (ms == NULL) {
@@ -358,24 +387,24 @@ void compacterMs(Ms *ms) {
     int i = 0;   // General index for iteration
 
     // Iterate through existing blocks until all blocks are processed
-    while (DF < ms->nm_bloc || FF < ms->nm_bloc) { 
-        // Find the first occupied block
-        while (i < ms->nm_bloc && ms->T[i].occupied == true) {
-            i++; // Increment index until an occupied block is found
+    while (DF < Total_block || FF < Total_block) { 
+        // Find the first free block
+        while (i < Total_block && talloc->T[i].occupied == true) {
+            i++; // Increment index until a free block is found
         }
         DF = i; // Set DF to the index of the first free block
 
         // If all blocks are occupied, print a message and exit
-        if (i >= ms->nm_bloc) {
+        if (i >= Total_block) {
             printf("Tous les blocs sont occupés\n");
             return;
         } else {
             // Count the number of consecutive free blocks after DF
-            while (i < ms->nm_bloc && ms->T[i].occupied == false) {
+            while (i < Total_block && talloc->T[i].occupied == false) {
                 i++; // Move to the next block
             }
             // If there are no more occupied blocks, print a message and exit
-            if (i >= ms->nm_bloc) {
+            if (i >= Total_block) {
                 printf("Pas d'autre bloc occupé\n");
                 return;
             } else {
@@ -385,14 +414,16 @@ void compacterMs(Ms *ms) {
                 writeIndex = DF; // Start writing from the first free block
 
                 // Move all occupied blocks to the writeIndex position
-                while (readIndex < ms->nm_bloc && ms->T[readIndex].occupied == true) {
+                while (readIndex < Total_block && talloc->T[readIndex].occupied == true) {
                     // Read the current block into the buffer
-                    memcpy(&buffer, &ms->T[readIndex], sizeof(Bloc));
+                    memcpy(&buffer, &ms->T[readIndex], sizeof(Bloc));  ////////////////////////////////////////////
                 
                     // Move the occupied block to the writeIndex position
-                    memcpy(&ms->T[writeIndex], &buffer, sizeof(Bloc));
-                    modifierTableAllocation(ms, writeIndex, true); // Mark the new position as occupied
-                    modifierTableAllocation(ms, readIndex, false); // Mark the old position as free
+                    memcpy(&ms->T[writeIndex], &buffer, sizeof(Bloc));/////////////////////////////////////////////
+
+                    updateTabAlloc(ms , writeIndex, true); // Mark the new position as occupied
+                    updateTabAlloc(ms , readIndex, false); // Mark the old position as free
+
                     writeIndex++; // Increment write index for the next write
                     readIndex++;  // Increment read index to process the next block
                 }
@@ -405,8 +436,52 @@ void compacterMs(Ms *ms) {
     }
 }
 
-*/
+void suppfichiercntg(Ms *ms , Tallocation *talloc , mt *metainfo) { //addr firstblock and nb erg from met
+    
+    int nb_reg = metainfo->nb_enregistrement;
+    int addr_block = metainfo->adresse_firstblock;
+    
+    int block_to_delete = ceil((double)nb_reg / Facteur_block); 
+    int i = 0;  
+    while(i<block_to_delete){
+        updateTabAlloc(ms , addr_block, false);
+        addr_block = addr_block + 1;
+        i++;
+    }
+    compacterMs(ms, talloc);
+}
 
+void suppfichierchaine(Ms *ms , Tallocation *talloc , mt *metainfo) { 
+    
+    int nb_reg = metainfo->nb_enregistrement;
+    int addr_block = metainfo->adresse_firstblock;
+    Bloc buffer ;
+    int block_to_delete = ceil((double)nb_reg / Facteur_block); 
+    int i = 0;
+   while(i<block_to_delete){
+        updateTabAlloc(ms , addr_block, false);
+        memcpy(&buffer, &ms->T[addr_block], sizeof(Bloc)); //////////////////////////////////////////////
+        addr_block = buffer.next;
+        i++;
+    }
+    compacterMs(ms, talloc); 
+}
+
+suppfichier(Ms *ms , Tallocation *talloc , mt *metainfo ){
+
+    bool choix = metainfo->org_globale ;
+
+    if(choix ==true){
+        suppfichiercntg(ms, talloc, metainfo);
+    }
+    else{
+        suppfichierchaine(ms, talloc, metainfo);
+    }   
+
+}
+
+
+/*
 
 int main() {
     Ms ms;
